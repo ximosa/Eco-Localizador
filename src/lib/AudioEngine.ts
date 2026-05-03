@@ -39,13 +39,22 @@ export class AudioEngine {
     if (this.audioCtx) return;
     
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // First try with sonar-optimized settings
+      const constraints = {
         audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
+          echoCancellation: { ideal: false },
+          noiseSuppression: { ideal: false },
+          autoGainControl: { ideal: false },
         } 
-      });
+      };
+      
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e) {
+        console.warn('Optimized constraints failed, falling back to basic audio', e);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       
       this.audioCtx = new AudioContext({ sampleRate: 48000 });
       if (this.audioCtx.state === 'suspended') {

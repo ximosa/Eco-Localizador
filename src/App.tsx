@@ -41,8 +41,15 @@ export default function App() {
         await engine.initialize();
         setIsStarted(true);
         setError(null);
-      } catch (err) {
-        setError('Permiso de micrófono denegado o fallo de hardware.');
+      } catch (err: any) {
+        console.error(err);
+        if (err.name === 'NotAllowedError') {
+          setError('Permiso denegado. Haz clic en el candado de la barra de direcciones para permitir el micrófono.');
+        } else if (err.name === 'NotFoundError') {
+          setError('No se ha detectado ningún micrófono en este dispositivo.');
+        } else {
+          setError(`Fallo de hardware: ${err.message || 'Error desconocido'}`);
+        }
       } finally {
         setIsInitializing(false);
       }
