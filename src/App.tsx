@@ -26,6 +26,12 @@ export default function App() {
   const [calibrationValue, setCalibrationValue] = useState(0);
 
   const scanIntervalRef = useRef<number | null>(null);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setError('SISTEMA BLOQUEADO: No estás en una conexión segura (HTTPS o localhost). El acceso al micrófono no es posible.');
+    }
+  }, []);
 
   useEffect(() => {
     engine.setDataCallback((data) => {
@@ -210,7 +216,7 @@ export default function App() {
           </AnimatePresence>
 
           <div className="text-[10px] text-center opacity-40 font-mono mt-auto pt-8">
-            CONFIDENCIAL / ESPECIF. MILITAR / ACCESO HARDWARE REQ. / v1.0.4
+            CONFIDENCIAL / ESPECIF. MILITAR / ACCESO HARDWARE REQ. / v1.0.7
           </div>
         </section>
       </main>

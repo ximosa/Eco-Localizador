@@ -134,6 +134,11 @@ export class AudioEngine {
   async ping(): Promise<ScanResult | null> {
     if (!this.audioCtx || !this.analyser) return null;
     
+    // Ensure context is active (important for some browsers)
+    if (this.audioCtx.state === 'suspended') {
+      await this.audioCtx.resume();
+    }
+    
     const sendTime = await this.chirp();
     
     // We need to listen for the echo.
@@ -210,6 +215,9 @@ export class AudioEngine {
       latencies.sort((a, b) => a - b);
       this.calibrationLatency = latencies[0]; // The fastest signal is the internal one
       console.log('Calibrated latency:', this.calibrationLatency);
+    } else {
+      console.warn('Calibration failed to find pulses. Using default hardware latency.');
+      this.calibrationLatency = 15; // Average internal latency for mobile devices
     }
     this.state = EchoEngineState.IDLE;
   }
