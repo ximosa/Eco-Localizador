@@ -1,0 +1,6 @@
+{
+  "name": "Eco-Localizador",
+  "description": "Aplicación de medición de distancia por sonar activo mediante detección de pulso-eco y Web Audio API.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}
