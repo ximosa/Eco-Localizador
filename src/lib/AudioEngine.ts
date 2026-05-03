@@ -62,7 +62,7 @@ export class AudioEngine {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       
-      this.audioCtx = new AudioContext({ sampleRate: 48000 });
+      this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       if (this.audioCtx.state === 'suspended') {
         await this.audioCtx.resume();
       }
@@ -112,23 +112,26 @@ export class AudioEngine {
     const osc = this.audioCtx.createOscillator();
     const gain = this.audioCtx.createGain();
     
+    // Use a small scheduling offset to avoid timing issues
+    const startTime = this.audioCtx.currentTime + 0.01;
+    
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(this.START_FREQ, this.audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(this.END_FREQ, this.audioCtx.currentTime + this.CHIRP_DURATION);
+    osc.frequency.setValueAtTime(this.START_FREQ, startTime);
+    osc.frequency.exponentialRampToValueAtTime(this.END_FREQ, startTime + this.CHIRP_DURATION);
 
-    gain.gain.setValueAtTime(0, this.audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(1, this.audioCtx.currentTime + 0.002);
-    gain.gain.setValueAtTime(1, this.audioCtx.currentTime + this.CHIRP_DURATION - 0.002);
-    gain.gain.linearRampToValueAtTime(0, this.audioCtx.currentTime + this.CHIRP_DURATION);
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(1, startTime + 0.002);
+    gain.gain.setValueAtTime(1, startTime + this.CHIRP_DURATION - 0.002);
+    gain.gain.linearRampToValueAtTime(0, startTime + this.CHIRP_DURATION);
 
     osc.connect(gain);
     gain.connect(this.audioCtx.destination);
 
-    const startTime = performance.now();
-    osc.start();
-    osc.stop(this.audioCtx.currentTime + this.CHIRP_DURATION);
+    const perfStartTime = performance.now() + 10; // Match the 10ms offset
+    osc.start(startTime);
+    osc.stop(startTime + this.CHIRP_DURATION);
     
-    return startTime;
+    return perfStartTime;
   }
 
   async ping(): Promise<ScanResult | null> {
@@ -224,13 +227,19 @@ export class AudioEngine {
 
   private startVisualLoop() {
     const dataArray = new Float32Array(this.visualAnalyser!.frequencyBinCount);
-    const loop = () => {
+    let lastUpdate = 0;
+    const loop = (now: number) => {
       if (!this.visualAnalyser) return;
-      this.visualAnalyser.getFloatTimeDomainData(dataArray);
-      if (this.onDataCallback) this.onDataCallback(dataArray);
+      
+      // Throttle to ~20fps to avoid hogging the main thread
+      if (now - lastUpdate > 50) {
+        this.visualAnalyser.getFloatTimeDomainData(dataArray);
+        if (this.onDataCallback) this.onDataCallback(dataArray);
+        lastUpdate = now;
+      }
       requestAnimationFrame(loop);
     };
-    loop();
+    requestAnimationFrame(loop);
   }
 
   getCalibrationValue() {
