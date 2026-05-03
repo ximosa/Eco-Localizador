@@ -38,6 +38,10 @@ export class AudioEngine {
   async initialize() {
     if (this.audioCtx) return;
     
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('El acceso al micrófono no está disponible. Asegúrate de estar usando HTTPS y un navegador moderno.');
+    }
+    
     try {
       // First try with sonar-optimized settings
       const constraints = {

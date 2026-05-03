@@ -34,6 +34,7 @@ export default function App() {
   }, [engine]);
 
   const togglePower = async () => {
+    console.log('Toggle Power called. current isStarted:', isStarted, 'isInitializing:', isInitializing);
     if (!isStarted) {
       if (isInitializing) return;
       setIsInitializing(true);
@@ -209,7 +210,7 @@ export default function App() {
           </AnimatePresence>
 
           <div className="text-[10px] text-center opacity-40 font-mono mt-auto pt-8">
-            CONFIDENCIAL / ESPECIF. MILITAR / ACCESO HARDWARE REQ.
+            CONFIDENCIAL / ESPECIF. MILITAR / ACCESO HARDWARE REQ. / v1.0.4
           </div>
         </section>
       </main>
