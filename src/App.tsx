@@ -101,7 +101,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+      <main className="flex-1 max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-start overflow-y-auto">
         {/* Left: Visualization */}
         <section className="flex flex-col gap-4">
           <RadarCanvas 
@@ -143,7 +143,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2 text-xs font-mono py-1 border-y border-[#00ff41]/10">
                 <Activity className="w-3 h-3 text-[#00ff41]" />
-                <span>FREQ: CHIRP 18KHz - 20KHz</span>
+                <span>FREQ: CHIRP 16KHz - 18KHz</span>
               </div>
             </div>
           </div>

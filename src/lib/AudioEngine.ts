@@ -27,8 +27,8 @@ export class AudioEngine {
   
   // Audio parameters
   private readonly CHIRP_DURATION = 0.01; // 10ms
-  private readonly START_FREQ = 18000;
-  private readonly END_FREQ = 20000;
+  private readonly START_FREQ = 16000;
+  private readonly END_FREQ = 18000;
   private readonly SPEED_OF_SOUND = 343; // m/s
   
   private onDataCallback: ((data: Float32Array, result?: ScanResult) => void) | null = null;
@@ -48,6 +48,9 @@ export class AudioEngine {
       });
       
       this.audioCtx = new AudioContext({ sampleRate: 48000 });
+      if (this.audioCtx.state === 'suspended') {
+        await this.audioCtx.resume();
+      }
       this.analyser = this.audioCtx.createAnalyser();
       this.analyser.fftSize = 2048;
       
@@ -56,7 +59,7 @@ export class AudioEngine {
       // Bandpass filter centered at 19kHz
       this.filter = this.audioCtx.createBiquadFilter();
       this.filter.type = 'bandpass';
-      this.filter.frequency.value = 19000;
+      this.filter.frequency.value = 17000;
       this.filter.Q.value = 5.0; // Sharpness
       
       this.inputSource.connect(this.filter);
