@@ -19,6 +19,7 @@ export default function App() {
   const [isStarted, setIsStarted] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isCalibrating, setIsCalibrating] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [distance, setDistance] = useState(0);
   const [audioData, setAudioData] = useState<Float32Array>(new Float32Array(1024));
   const [error, setError] = useState<string | null>(null);
@@ -34,12 +35,16 @@ export default function App() {
 
   const togglePower = async () => {
     if (!isStarted) {
+      if (isInitializing) return;
+      setIsInitializing(true);
       try {
         await engine.initialize();
         setIsStarted(true);
         setError(null);
       } catch (err) {
         setError('Permiso de micrófono denegado o fallo de hardware.');
+      } finally {
+        setIsInitializing(false);
       }
     } else {
       stopScanning();
@@ -151,11 +156,12 @@ export default function App() {
           <div className="flex flex-col gap-4">
             <button 
               id="btn-power"
+              disabled={isInitializing}
               onClick={togglePower}
-              className={`btn-radar flex items-center justify-center gap-2 ${isStarted ? 'bg-red-900/20 text-red-500 border-red-500' : ''}`}
+              className={`btn-radar flex items-center justify-center gap-2 ${isStarted ? 'bg-red-900/20 text-red-500 border-red-500' : ''} ${isInitializing ? 'opacity-50' : ''}`}
             >
-              <Power className="w-4 h-4" />
-              {isStarted ? 'Desactivar Sistema' : 'Inicializar Hardware'}
+              <Power className={`w-4 h-4 ${isInitializing ? 'animate-spin' : ''}`} />
+              {isInitializing ? 'Inicializando...' : (isStarted ? 'Desactivar Sistema' : 'Inicializar Hardware')}
             </button>
 
             <div className="grid grid-cols-2 gap-4">
