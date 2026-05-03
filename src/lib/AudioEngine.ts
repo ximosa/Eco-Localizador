@@ -143,7 +143,7 @@ export class AudioEngine {
         // Peak detection logic
         let peakValue = 0;
         let peakIndex = -1;
-        const threshold = 0.05; // Adjustable
+        const threshold = 0.01; // Sensibilidad aumentada
 
         for (let i = 0; i < dataArray.length; i++) {
           const val = Math.abs(dataArray[i]);
