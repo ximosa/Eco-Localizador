@@ -18,7 +18,9 @@ interface ScanResult {
 export class AudioEngine {
   private audioCtx: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
+  private visualAnalyser: AnalyserNode | null = null;
   private inputSource: MediaStreamAudioSourceNode | null = null;
+  private inputGain: GainNode | null = null;
   private filter: BiquadFilterNode | null = null;
   private state: EchoEngineState = EchoEngineState.IDLE;
   
@@ -67,16 +69,32 @@ export class AudioEngine {
       this.analyser = this.audioCtx.createAnalyser();
       this.analyser.fftSize = 2048;
       
+      this.visualAnalyser = this.audioCtx.createAnalyser();
+      this.visualAnalyser.fftSize = 1024;
+      
       this.inputSource = this.audioCtx.createMediaStreamSource(stream);
       
-      // Bandpass filter centered at 19kHz
+      this.inputGain = this.audioCtx.createGain();
+      this.inputGain.gain.value = 2.0; // Boost input signal
+      
+      // Bandpass filter centered at 17kHz
       this.filter = this.audioCtx.createBiquadFilter();
       this.filter.type = 'bandpass';
       this.filter.frequency.value = 17000;
-      this.filter.Q.value = 5.0; // Sharpness
+      this.filter.Q.value = 3.0; // Less sharp for better detection
       
-      this.inputSource.connect(this.filter);
+      // Connect chains
+      this.inputSource.connect(this.inputGain);
+      
+      // Path 1: Sonar (Filtered)
+      this.inputGain.connect(this.filter);
       this.filter.connect(this.analyser);
+      
+      // Path 2: Visual (Raw)
+      this.inputGain.connect(this.visualAnalyser);
+      
+      // Start visual update loop
+      this.startVisualLoop();
       
     } catch (err) {
       console.error('Failed to initialize audio engine:', err);
@@ -194,6 +212,17 @@ export class AudioEngine {
       console.log('Calibrated latency:', this.calibrationLatency);
     }
     this.state = EchoEngineState.IDLE;
+  }
+
+  private startVisualLoop() {
+    const dataArray = new Float32Array(this.visualAnalyser!.frequencyBinCount);
+    const loop = () => {
+      if (!this.visualAnalyser) return;
+      this.visualAnalyser.getFloatTimeDomainData(dataArray);
+      if (this.onDataCallback) this.onDataCallback(dataArray);
+      requestAnimationFrame(loop);
+    };
+    loop();
   }
 
   getCalibrationValue() {
