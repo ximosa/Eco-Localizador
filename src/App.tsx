@@ -73,12 +73,27 @@ export default function App() {
     setIsScanning(true);
     isScanningRef.current = true;
     
+    let lastDistances: number[] = [];
+
     const runPing = async () => {
       if (!isScanningRef.current) return;
       const result = await engine.ping();
+      
       if (result) {
-        setDistance(result.distance);
+        // Filtrado por Mediana para descartar picos de ruido aleatorio
+        lastDistances.push(result.distance);
+        if (lastDistances.length > 5) lastDistances.shift();
+        
+        const sorted = [...lastDistances].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        
+        // Suavizado exponencial (EMA) para que el número baile de forma elegante
+        setDistance(prev => {
+          if (prev === 0) return median;
+          return prev * 0.8 + median * 0.2;
+        });
       }
+      
       if (isScanningRef.current) {
         scanIntervalRef.current = window.setTimeout(runPing, 300);
       }
@@ -150,7 +165,7 @@ export default function App() {
             <label className="text-[12px] uppercase tracking-widest opacity-60 mb-4 block font-mono">Distancia al Objetivo</label>
             <div className="flex items-baseline gap-2">
               <span className="text-7xl font-bold tracking-tighter radar-glow">
-                {distance.toFixed(2)}
+                {distance === 0 ? "0.0" : distance.toFixed(1)}
               </span>
               <span className="text-2xl font-mono">M</span>
             </div>
@@ -162,7 +177,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2 text-xs font-mono py-1 border-y border-[#00ff41]/10">
                 <Activity className="w-3 h-3 text-[#00ff41]" />
-                <span>FREQ: CHIRP 16KHz - 18KHz</span>
+                <span>FREQ: CHIRP 4KHz - 6KHz</span>
               </div>
             </div>
           </div>

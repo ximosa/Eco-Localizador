@@ -29,8 +29,8 @@ export class AudioEngine {
   
   // Audio parameters
   private readonly CHIRP_DURATION = 0.01; // 10ms
-  private readonly START_FREQ = 16000;
-  private readonly END_FREQ = 18000;
+  private readonly START_FREQ = 4000;
+  private readonly END_FREQ = 6000;
   private readonly SPEED_OF_SOUND = 343; // m/s
   
   private onDataCallback: ((data: Float32Array, result?: ScanResult) => void) | null = null;
@@ -67,30 +67,30 @@ export class AudioEngine {
         await this.audioCtx.resume();
       }
       this.analyser = this.audioCtx.createAnalyser();
-      this.analyser.fftSize = 2048;
+      this.analyser.fftSize = 16384; // 341ms of history at 48kHz
       
       this.visualAnalyser = this.audioCtx.createAnalyser();
-      this.visualAnalyser.fftSize = 1024;
+      this.visualAnalyser.fftSize = 2048;
       
       this.inputSource = this.audioCtx.createMediaStreamSource(stream);
       
       this.inputGain = this.audioCtx.createGain();
       this.inputGain.gain.value = 2.0; // Boost input signal
       
-      // Bandpass filter centered at 17kHz
+      // Bandpass filter centered at 5kHz
       this.filter = this.audioCtx.createBiquadFilter();
       this.filter.type = 'bandpass';
-      this.filter.frequency.value = 17000;
-      this.filter.Q.value = 3.0; // Less sharp for better detection
+      this.filter.frequency.value = 5000;
+      this.filter.Q.value = 2.0; // Wider bandpass for the sweep
       
       // Connect chains
       this.inputSource.connect(this.inputGain);
-      
-      // Path 1: Sonar (Filtered)
+
+      // Path 1: Sonar (Filtered at 5kHz to ignore background noise)
       this.inputGain.connect(this.filter);
       this.filter.connect(this.analyser);
       
-      // Path 2: Visual (Raw)
+      // Path 2: Visual (Raw audio for the UI waves)
       this.inputGain.connect(this.visualAnalyser);
       
       // Start visual update loop
@@ -136,70 +136,76 @@ export class AudioEngine {
 
   async ping(): Promise<ScanResult | null> {
     if (!this.audioCtx || !this.analyser) return null;
-    
-    // Ensure context is active (important for some browsers)
-    if (this.audioCtx.state === 'suspended') {
-      await this.audioCtx.resume();
-    }
+    if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
     
     const sendTime = await this.chirp();
     
-    // We need to listen for the echo.
-    // In a real sonar, we'd use cross-correlation, but for simple app, 
-    // we'll look for the first threshold crossing in the filtered buffer.
-    
     return new Promise((resolve) => {
-      const bufferLength = this.analyser!.frequencyBinCount;
-      const dataArray = new Float32Array(bufferLength);
-      
-      // Allow some time for the signal to travel and return
-      let startTimeSearch = performance.now();
-      const searchWindow = 200; // ms to listen for echo
-      
-      const checkPeak = () => {
-        const now = performance.now();
-        if (now - startTimeSearch > searchWindow) {
-          resolve(null);
-          return;
-        }
-
+      setTimeout(() => {
+        const bufferLength = this.analyser!.fftSize;
+        const dataArray = new Float32Array(bufferLength);
         this.analyser!.getFloatTimeDomainData(dataArray);
-        if (this.onDataCallback) this.onDataCallback(dataArray);
 
-        // Peak detection logic
-        let peakValue = 0;
-        let peakIndex = -1;
-        const threshold = 0.01; // Sensibilidad aumentada
+        const now = performance.now();
+        let bestPeakVal = 0;
+        let bestPeakTime = 0;
+        
+        let noiseSum = 0;
+        let noiseSamples = 0;
 
         for (let i = 0; i < dataArray.length; i++) {
-          const val = Math.abs(dataArray[i]);
-          if (val > threshold && val > peakValue) {
-            peakValue = val;
-            peakIndex = i;
-          }
+           const val = Math.abs(dataArray[i]);
+           const samplesAgo = dataArray.length - i;
+           const msAgo = (samplesAgo / this.audioCtx!.sampleRate) * 1000;
+           const timeOfSample = now - msAgo;
+           
+           const timeSinceSend = timeOfSample - sendTime;
+           
+           if (this.state === EchoEngineState.CALIBRATING) {
+               // En calibración, buscar el pico máximo en los primeros 40ms (el eco interno)
+               if (timeSinceSend > 0 && timeSinceSend < 40) {
+                   if (val > bestPeakVal) {
+                       bestPeakVal = val;
+                       bestPeakTime = timeOfSample;
+                   }
+               }
+           } else {
+               // En escaneo, ignorar el ruido interno (crosstalk)
+               const ignoreUntil = this.calibrationLatency + 10;
+               
+               // Buscar el pico absoluto DESPUÉS de ese tiempo y medir el ruido de fondo
+               if (timeSinceSend > ignoreUntil) {
+                   noiseSum += val;
+                   noiseSamples++;
+                   
+                   if (val > bestPeakVal) {
+                       bestPeakVal = val;
+                       bestPeakTime = timeOfSample;
+                   }
+               }
+           }
         }
 
-        if (peakIndex !== -1) {
-          // Calculate time
-          // This is a simplified peak detection.
-          const timeOfPeak = performance.now();
-          const latencyRaw = timeOfPeak - sendTime;
-          
-          // Correction for calibration
+        // Si estamos calibrando, aceptamos cualquier pico claro. Si estamos midiendo, usamos SNR (Signal-to-Noise Ratio).
+        const avgNoise = noiseSamples > 0 ? noiseSum / noiseSamples : 0;
+        const dynamicThreshold = this.state === EchoEngineState.CALIBRATING 
+            ? 0.005 
+            : Math.max(avgNoise * 3.5, 0.005); // El eco debe destacar x3.5 sobre el ruido de fondo
+
+        if (bestPeakVal > dynamicThreshold) {
+          const latencyRaw = bestPeakTime - sendTime;
           const correctedTime = Math.max(0, latencyRaw - this.calibrationLatency);
           const distance = (this.SPEED_OF_SOUND * (correctedTime / 1000)) / 2;
 
           resolve({
             distance,
             latencyRaw,
-            peakAmplitude: peakValue
+            peakAmplitude: bestPeakVal
           });
         } else {
-          requestAnimationFrame(checkPeak);
+          resolve(null);
         }
-      };
-
-      requestAnimationFrame(checkPeak);
+      }, 120);
     });
   }
 

@@ -99,8 +99,8 @@ export const RadarCanvas: React.FC<RadarCanvasProps> = ({ audioData, distance, i
       ctx.fillText('SEÑAL EN TIEMPO REAL', 15, oscTop + 15);
       
       // Distance Marker on Radar
-      if (distance > 0 && distance < 10) { // arbitrary max view range for UI
-        const mappedRadius = (distance / 10) * maxRadius;
+      if (distance > 0 && distance < 20) { // arbitrary max view range for UI
+        const mappedRadius = (distance / 20) * maxRadius;
         ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
